@@ -5,8 +5,13 @@
 // Polyphonic keyboard synth - stores active oscillators per key
 let activeOscillators = {};
 
-// Loop system - stores captured loops
-let loops = [];
+// Rhythm loop system
+let keyPressTimestamps = [];  // Track timing of key presses
+let rhythmIntervals = [];      // Captured rhythm intervals
+let rhythmSounds = [];         // Captured sound frequencies
+let isLoopPlaying = false;     // Loop playback state
+let loopIntervalId = null;     // setInterval ID for loop
+let loopIndex = 0;             // Current position in loop
 
 // ===== VISUAL PARAMETERS =====
 let a = 3;  // Lissajous frequency X
@@ -147,41 +152,44 @@ function displayInfo() {
   textSize(12);
   textAlign(LEFT, TOP);
   text('Press A-Z for synth tones (polyphonic!)', 10, 10);
-  text('SPACE: Capture loop | C: Clear all loops', 10, 30);
+  text('SPACE: Toggle rhythm loop (captures your timing)', 10, 30);
   text('Lissajous: a=' + a + ' b=' + b, 10, 50);
   if (activeKeys.length > 0) {
     text('Keys: ' + activeKeys.join(', '), 10, 70);
   }
-  if (loops.length > 0) {
-    text('Loops: ' + loops.length + ' active', 10, 90);
+  if (isLoopPlaying) {
+    text('🔄 Loop playing (' + rhythmIntervals.length + ' beats)', 10, 90);
+  } else if (rhythmIntervals.length > 0) {
+    text('Loop ready (' + rhythmIntervals.length + ' beats) - Press SPACE', 10, 90);
   }
 }
 
 function keyPressed() {
-  // Handle spacebar - capture current sounds as a loop
+  // Handle spacebar - toggle rhythm loop
   if (key === ' ') {
-    captureLoop();
+    toggleRhythmLoop();
     return false; // Prevent default spacebar behavior
   }
 
-  // Handle 'C' key - clear all loops
-  if (key === 'c' || key === 'C') {
-    clearAllLoops();
-    return;
-  }
-
-  // Only respond to letter keys A-Z (excluding C which is used for clearing)
+  // Only respond to letter keys A-Z
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
     let keyName = key.toUpperCase();
-
-    // Skip 'C' as it's used for clearing loops
-    if (keyName === 'C') {
-      return;
-    }
 
     // Prevent key repeat - only trigger if key not already pressed
     if (activeOscillators[keyName]) {
       return;
+    }
+
+    // ===== RECORD TIMESTAMP FOR RHYTHM TRACKING =====
+    let currentTime = millis();
+    keyPressTimestamps.push({
+      time: currentTime,
+      key: keyName
+    });
+
+    // Keep only last 16 key presses for rhythm capture
+    if (keyPressTimestamps.length > 16) {
+      keyPressTimestamps.shift();
     }
 
     // Add to active keys list
@@ -217,11 +225,6 @@ function keyReleased() {
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
     let keyName = key.toUpperCase();
 
-    // Skip 'C' as it's used for clearing loops
-    if (keyName === 'C') {
-      return;
-    }
-
     // Remove from active keys list
     let index = activeKeys.indexOf(keyName);
     if (index > -1) {
@@ -243,63 +246,95 @@ function keyReleased() {
   }
 }
 
-// ===== LOOP SYSTEM =====
-function captureLoop() {
-  // Only capture if there are active keys
-  if (activeKeys.length === 0) {
+// ===== RHYTHM LOOP SYSTEM =====
+function toggleRhythmLoop() {
+  if (isLoopPlaying) {
+    // Stop the loop
+    stopRhythmLoop();
+  } else {
+    // Start or restart the loop
+    captureAndStartRhythmLoop();
+  }
+}
+
+function captureAndStartRhythmLoop() {
+  // Need at least 2 key presses to capture rhythm
+  if (keyPressTimestamps.length < 2) {
     return;
   }
 
-  // Create a new loop with current active keys and their frequencies
-  let newLoop = {
-    oscillators: []
-  };
+  // Calculate intervals between key presses
+  rhythmIntervals = [];
+  rhythmSounds = [];
 
-  // For each active key, create a persistent looping oscillator
-  for (let keyName of activeKeys) {
-    if (activeOscillators[keyName]) {
-      let keyIndex = keyName.charCodeAt(0) - 65;
-      let freq = map(keyIndex, 0, 25, 120, 1000);
+  for (let i = 1; i < keyPressTimestamps.length; i++) {
+    let interval = keyPressTimestamps[i].time - keyPressTimestamps[i - 1].time;
+    rhythmIntervals.push(interval);
 
-      // Create looping oscillator (no envelope, continuous)
-      let loopOsc = new p5.Oscillator('sine');
-      loopOsc.freq(freq);
-      loopOsc.amp(0);
-      loopOsc.start();
-
-      // Fade in the loop oscillator
-      loopOsc.amp(0.25, 0.1);
-
-      newLoop.oscillators.push({
-        osc: loopOsc,
-        freq: freq,
-        key: keyName
-      });
-    }
+    // Store the frequency for this sound
+    let keyIndex = keyPressTimestamps[i].key.charCodeAt(0) - 65;
+    let freq = map(keyIndex, 0, 25, 120, 1000);
+    rhythmSounds.push(freq);
   }
 
-  // Add loop to loops array
-  loops.push(newLoop);
+  // Start playback
+  loopIndex = 0;
+  isLoopPlaying = true;
+  playNextLoopSound();
 
   // Visual feedback
-  kickPulse = 0.3; // Big pulse to indicate loop captured
+  kickPulse = 0.3; // Big pulse to indicate loop started
 }
 
-function clearAllLoops() {
-  // Stop and dispose all loop oscillators
-  for (let loop of loops) {
-    for (let oscData of loop.oscillators) {
-      oscData.osc.amp(0, 0.2);
-      setTimeout(() => {
-        oscData.osc.stop();
-        oscData.osc.dispose();
-      }, 250);
-    }
+function playNextLoopSound() {
+  if (!isLoopPlaying || rhythmIntervals.length === 0) {
+    return;
   }
 
-  // Clear loops array
-  loops = [];
+  // Play current sound
+  playLoopSound(rhythmSounds[loopIndex]);
+
+  // Schedule next sound
+  let nextInterval = rhythmIntervals[loopIndex];
+  loopIndex = (loopIndex + 1) % rhythmIntervals.length;
+
+  loopIntervalId = setTimeout(() => {
+    playNextLoopSound();
+  }, nextInterval);
+}
+
+function playLoopSound(freq) {
+  // Create short sound burst
+  let loopOsc = new p5.Oscillator('sine');
+  loopOsc.freq(freq);
+  loopOsc.start();
+
+  let loopEnv = new p5.Envelope();
+  loopEnv.setADSR(0.01, 0.1, 0, 0);  // Very short sound
+  loopEnv.setRange(0.3, 0);
+  loopEnv.play(loopOsc);
+
+  // Auto-cleanup
+  setTimeout(() => {
+    loopOsc.stop();
+    loopOsc.dispose();
+  }, 150);
+
+  // Visual feedback - small flicker
+  hatFlicker = 1;
+}
+
+function stopRhythmLoop() {
+  isLoopPlaying = false;
+
+  // Clear timeout
+  if (loopIntervalId) {
+    clearTimeout(loopIntervalId);
+    loopIntervalId = null;
+  }
+
+  loopIndex = 0;
 
   // Visual feedback
-  hatFlicker = 5; // Flicker to indicate cleared
+  kickPulse = 0.2; // Pulse to indicate loop stopped
 }
