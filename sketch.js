@@ -2,9 +2,8 @@
 // Jerobeam Fenderson Oscilloscope Style + Patatap Keyboard Synth
 
 // ===== AUDIO COMPONENTS =====
-let kickOsc, kickEnv;
-let hatNoise, hatEnv, hatFilter;
-let userOsc, userEnv;
+// Polyphonic keyboard synth - stores active oscillators per key
+let activeOscillators = {};
 
 // ===== VISUAL PARAMETERS =====
 let a = 3;  // Lissajous frequency X
@@ -15,8 +14,7 @@ let hatFlicker = 0;  // Flicker from hi-hat
 let breathe = 0;  // Breathing effect from keyboard
 
 // ===== KEYBOARD STATE =====
-let keyIsPressed = false;
-let currentKey = '';
+let activeKeys = [];
 
 function preload() {
   // No external assets needed
@@ -24,40 +22,6 @@ function preload() {
 
 function setup() {
   createCanvas(800, 800);
-
-  // ===== KICK DRUM SETUP =====
-  kickOsc = new p5.Oscillator('sine');
-  kickOsc.amp(0);
-  kickOsc.start();
-
-  kickEnv = new p5.Envelope();
-  kickEnv.setADSR(0.001, 0.2, 0, 0);
-  kickEnv.setRange(0.8, 0);
-
-  // ===== HI-HAT SETUP =====
-  hatNoise = new p5.Noise('white');
-  hatNoise.amp(0);
-  hatNoise.start();
-
-  hatFilter = new p5.BandPass();
-  hatFilter.freq(8000);  // Center frequency around 8kHz
-  hatFilter.res(15);     // High resonance for sharper sound
-  hatNoise.disconnect();
-  hatNoise.connect(hatFilter);
-
-  hatEnv = new p5.Envelope();
-  hatEnv.setADSR(0.001, 0.05, 0, 0);
-  hatEnv.setRange(0.3, 0);
-
-  // ===== USER OSCILLATOR SETUP =====
-  userOsc = new p5.Oscillator('sine');
-  userOsc.amp(0);
-  userOsc.start();
-
-  userEnv = new p5.Envelope();
-  userEnv.setADSR(0.05, 0.2, 0.4, 0.3);
-  userEnv.setRange(0.35, 0);
-
   background(0);
 }
 
@@ -88,20 +52,49 @@ function draw() {
 }
 
 function playKick() {
-  // Frequency envelope: 100Hz dropping to ~40Hz
+  // Create new oscillator and envelope for each kick (allows overlapping)
+  let kickOsc = new p5.Oscillator('sine');
+  kickOsc.start();
   kickOsc.freq(100);
   kickOsc.freq(40, 0.2);
 
-  // Trigger amplitude envelope
+  let kickEnv = new p5.Envelope();
+  kickEnv.setADSR(0.001, 0.2, 0, 0);
+  kickEnv.setRange(0.8, 0);
   kickEnv.play(kickOsc);
+
+  // Auto-cleanup after envelope completes
+  setTimeout(() => {
+    kickOsc.stop();
+    kickOsc.dispose();
+  }, 250);
 
   // Visual reaction: pulse
   kickPulse = 0.15;
 }
 
 function playHat() {
-  // Trigger noise burst through filter
+  // Create new noise source for each hi-hat (allows overlapping)
+  let hatNoise = new p5.Noise('white');
+  hatNoise.start();
+
+  let hatFilter = new p5.BandPass();
+  hatFilter.freq(8000);
+  hatFilter.res(15);
+  hatNoise.disconnect();
+  hatNoise.connect(hatFilter);
+
+  let hatEnv = new p5.Envelope();
+  hatEnv.setADSR(0.001, 0.05, 0, 0);
+  hatEnv.setRange(0.3, 0);
   hatEnv.play(hatNoise);
+
+  // Auto-cleanup after envelope completes
+  setTimeout(() => {
+    hatNoise.stop();
+    hatNoise.dispose();
+    hatFilter.dispose();
+  }, 100);
 
   // Visual reaction: flicker
   hatFlicker = random(1, 3);
@@ -116,7 +109,7 @@ function drawLissajous() {
   let scaleAmount = 1 + kickPulse;
 
   // Keyboard breathing
-  if (keyIsPressed) {
+  if (activeKeys.length > 0) {
     breathe = sin(frameCount * 0.1) * 0.03;
     scaleAmount += breathe;
   }
@@ -150,39 +143,73 @@ function displayInfo() {
   noStroke();
   textSize(12);
   textAlign(LEFT, TOP);
-  text('Press A-Z for synth tones', 10, 10);
+  text('Press A-Z for synth tones (polyphonic!)', 10, 10);
   text('Lissajous: a=' + a + ' b=' + b, 10, 30);
-  if (keyIsPressed) {
-    text('Key: ' + currentKey, 10, 50);
+  if (activeKeys.length > 0) {
+    text('Keys: ' + activeKeys.join(', '), 10, 50);
   }
 }
 
 function keyPressed() {
   // Only respond to letter keys A-Z
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
-    keyIsPressed = true;
-    currentKey = key.toUpperCase();
+    let keyName = key.toUpperCase();
+
+    // Prevent key repeat - only trigger if key not already pressed
+    if (activeOscillators[keyName]) {
+      return;
+    }
+
+    // Add to active keys list
+    if (!activeKeys.includes(keyName)) {
+      activeKeys.push(keyName);
+    }
 
     // ===== MAP KEY TO FREQUENCY (120-1000 Hz) =====
-    let keyIndex = currentKey.charCodeAt(0) - 65;  // A=0, B=1, ... Z=25
+    let keyIndex = keyName.charCodeAt(0) - 65;  // A=0, B=1, ... Z=25
     let freq = map(keyIndex, 0, 25, 120, 1000);
 
     // ===== RANDOMIZE LISSAJOUS PARAMETERS =====
     a = floor(random(1, 11));
     b = floor(random(1, 11));
 
-    // ===== PLAY SYNTH TONE =====
-    userOsc.freq(freq);
-    userEnv.play(userOsc);
+    // ===== CREATE NEW OSCILLATOR FOR THIS KEY =====
+    let osc = new p5.Oscillator('sine');
+    osc.freq(freq);
+    osc.start();
+
+    let env = new p5.Envelope();
+    env.setADSR(0.05, 0.2, 0.4, 0.3);
+    env.setRange(0.35, 0);
+    env.play(osc);
+
+    // Store oscillator and envelope
+    activeOscillators[keyName] = { osc: osc, env: env };
   }
 }
 
 function keyReleased() {
   // Only respond to letter keys A-Z
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
-    keyIsPressed = false;
+    let keyName = key.toUpperCase();
 
-    // ===== FADE OUT OSCILLATOR =====
-    userOsc.amp(0, 0.3);
+    // Remove from active keys list
+    let index = activeKeys.indexOf(keyName);
+    if (index > -1) {
+      activeKeys.splice(index, 1);
+    }
+
+    // ===== FADE OUT AND CLEANUP OSCILLATOR =====
+    if (activeOscillators[keyName]) {
+      let oscData = activeOscillators[keyName];
+      oscData.osc.amp(0, 0.3);
+
+      // Cleanup after fade out
+      setTimeout(() => {
+        oscData.osc.stop();
+        oscData.osc.dispose();
+        delete activeOscillators[keyName];
+      }, 350);
+    }
   }
 }
