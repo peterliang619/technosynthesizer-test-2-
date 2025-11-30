@@ -1,10 +1,6 @@
 let activeOscillators = {};
 let pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00];
 let activeShapes = [];
-let beatIndex = 0;
-let lastBeatTime = 0;
-let beatInterval = 400;
-let beatPattern = [0, 2, 4, 2];
 let globalPhase = 0;
 
 function preload() {}
@@ -19,10 +15,14 @@ function draw() {
 
   globalPhase += 0.02;
 
-  let currentTime = millis();
-  if (currentTime - lastBeatTime > beatInterval) {
-    playBeat();
-    lastBeatTime = currentTime;
+  // Kick every 30 frames
+  if (frameCount % 30 === 0) {
+    playKick();
+  }
+
+  // Hi-hat every 15 frames
+  if (frameCount % 15 === 0) {
+    playHat();
   }
 
   for (let i = activeShapes.length - 1; i >= 0; i--) {
@@ -36,25 +36,47 @@ function draw() {
   }
 }
 
-function playBeat() {
-  let noteIndex = beatPattern[beatIndex % beatPattern.length];
-  let freq = pentatonic[noteIndex];
+function playKick() {
+  // Create new oscillator and envelope for each kick (allows overlapping)
+  let kickOsc = new p5.Oscillator('sine');
+  kickOsc.start();
+  kickOsc.freq(100);
+  kickOsc.freq(40, 0.2);
 
-  let beatOsc = new p5.Oscillator('triangle');
-  beatOsc.freq(freq * 0.5);
-  beatOsc.start();
+  let kickEnv = new p5.Envelope();
+  kickEnv.setADSR(0.001, 0.2, 0, 0);
+  kickEnv.setRange(0.8, 0);
+  kickEnv.play(kickOsc);
 
-  let beatEnv = new p5.Envelope();
-  beatEnv.setADSR(0.005, 0.08, 0, 0);
-  beatEnv.setRange(0.15, 0);
-  beatEnv.play(beatOsc);
-
+  // Auto-cleanup after envelope completes
   setTimeout(() => {
-    beatOsc.stop();
-    beatOsc.dispose();
-  }, 100);
+    kickOsc.stop();
+    kickOsc.dispose();
+  }, 250);
+}
 
-  beatIndex++;
+function playHat() {
+  // Create new noise source for each hi-hat (allows overlapping)
+  let hatNoise = new p5.Noise('white');
+  hatNoise.start();
+
+  let hatFilter = new p5.BandPass();
+  hatFilter.freq(8000);
+  hatFilter.res(15);
+  hatNoise.disconnect();
+  hatNoise.connect(hatFilter);
+
+  let hatEnv = new p5.Envelope();
+  hatEnv.setADSR(0.001, 0.05, 0, 0);
+  hatEnv.setRange(0.3, 0);
+  hatEnv.play(hatNoise);
+
+  // Auto-cleanup after envelope completes
+  setTimeout(() => {
+    hatNoise.stop();
+    hatNoise.dispose();
+    hatFilter.dispose();
+  }, 100);
 }
 
 function drawShape(shape) {
