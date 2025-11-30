@@ -5,6 +5,9 @@
 // Polyphonic keyboard synth - stores active oscillators per key
 let activeOscillators = {};
 
+// Loop system - stores captured loops
+let loops = [];
+
 // ===== VISUAL PARAMETERS =====
 let a = 3;  // Lissajous frequency X
 let b = 4;  // Lissajous frequency Y
@@ -144,16 +147,37 @@ function displayInfo() {
   textSize(12);
   textAlign(LEFT, TOP);
   text('Press A-Z for synth tones (polyphonic!)', 10, 10);
-  text('Lissajous: a=' + a + ' b=' + b, 10, 30);
+  text('SPACE: Capture loop | C: Clear all loops', 10, 30);
+  text('Lissajous: a=' + a + ' b=' + b, 10, 50);
   if (activeKeys.length > 0) {
-    text('Keys: ' + activeKeys.join(', '), 10, 50);
+    text('Keys: ' + activeKeys.join(', '), 10, 70);
+  }
+  if (loops.length > 0) {
+    text('Loops: ' + loops.length + ' active', 10, 90);
   }
 }
 
 function keyPressed() {
-  // Only respond to letter keys A-Z
+  // Handle spacebar - capture current sounds as a loop
+  if (key === ' ') {
+    captureLoop();
+    return false; // Prevent default spacebar behavior
+  }
+
+  // Handle 'C' key - clear all loops
+  if (key === 'c' || key === 'C') {
+    clearAllLoops();
+    return;
+  }
+
+  // Only respond to letter keys A-Z (excluding C which is used for clearing)
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
     let keyName = key.toUpperCase();
+
+    // Skip 'C' as it's used for clearing loops
+    if (keyName === 'C') {
+      return;
+    }
 
     // Prevent key repeat - only trigger if key not already pressed
     if (activeOscillators[keyName]) {
@@ -193,6 +217,11 @@ function keyReleased() {
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
     let keyName = key.toUpperCase();
 
+    // Skip 'C' as it's used for clearing loops
+    if (keyName === 'C') {
+      return;
+    }
+
     // Remove from active keys list
     let index = activeKeys.indexOf(keyName);
     if (index > -1) {
@@ -212,4 +241,65 @@ function keyReleased() {
       }, 350);
     }
   }
+}
+
+// ===== LOOP SYSTEM =====
+function captureLoop() {
+  // Only capture if there are active keys
+  if (activeKeys.length === 0) {
+    return;
+  }
+
+  // Create a new loop with current active keys and their frequencies
+  let newLoop = {
+    oscillators: []
+  };
+
+  // For each active key, create a persistent looping oscillator
+  for (let keyName of activeKeys) {
+    if (activeOscillators[keyName]) {
+      let keyIndex = keyName.charCodeAt(0) - 65;
+      let freq = map(keyIndex, 0, 25, 120, 1000);
+
+      // Create looping oscillator (no envelope, continuous)
+      let loopOsc = new p5.Oscillator('sine');
+      loopOsc.freq(freq);
+      loopOsc.amp(0);
+      loopOsc.start();
+
+      // Fade in the loop oscillator
+      loopOsc.amp(0.25, 0.1);
+
+      newLoop.oscillators.push({
+        osc: loopOsc,
+        freq: freq,
+        key: keyName
+      });
+    }
+  }
+
+  // Add loop to loops array
+  loops.push(newLoop);
+
+  // Visual feedback
+  kickPulse = 0.3; // Big pulse to indicate loop captured
+}
+
+function clearAllLoops() {
+  // Stop and dispose all loop oscillators
+  for (let loop of loops) {
+    for (let oscData of loop.oscillators) {
+      oscData.osc.amp(0, 0.2);
+      setTimeout(() => {
+        oscData.osc.stop();
+        oscData.osc.dispose();
+      }, 250);
+    }
+  }
+
+  // Clear loops array
+  loops = [];
+
+  // Visual feedback
+  hatFlicker = 5; // Flicker to indicate cleared
 }
