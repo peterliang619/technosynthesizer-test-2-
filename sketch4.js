@@ -74,7 +74,7 @@ function draw() {
   bassLevel = bassLevel / 64 / 255;
 
   // Amplify bass peaks (square it to make kicks more pronounced)
-  bassLevel = pow(bassLevel, 1.5) * 1.5;
+  bassLevel = pow(bassLevel, 1.5) * 2.0;
 
   // Treble: 2000+ Hz (bins 128+)
   trebleLevel = 0;
@@ -84,8 +84,8 @@ function draw() {
   trebleLevel = trebleLevel / 72 / 255;
 
   // Map audio to visual effects (like sketch3's kickPulse and hatFlicker)
-  kickPulse = bassLevel * 0.15;  // Bass -> pulse effect
-  hatFlicker = trebleLevel * 3;   // Treble -> flicker effect
+  kickPulse = bassLevel * 0.25;  // Bass -> pulse effect (more sensitive)
+  hatFlicker = trebleLevel * 5;   // Treble -> flicker effect (more sensitive)
 
   // Animate phase shift
   delta += 0.03;
