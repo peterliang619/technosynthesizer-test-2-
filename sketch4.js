@@ -29,7 +29,7 @@ function preload() {
 }
 
 function setup() {
-  createCanvas(800, 800);
+  createCanvas(720, 720);
   background(0);
 
   // Create audio analyzers
@@ -133,8 +133,8 @@ function drawLissajous() {
   // Draw Lissajous
   beginShape();
   for (let t = 0; t < TWO_PI; t += 0.01) {
-    let x = sin(a * t) * 250;
-    let y = sin(b * t + delta) * 250;
+    let x = sin(a * t) * 225;
+    let y = sin(b * t + delta) * 225;
     vertex(x, y);
   }
   endShape(CLOSE);
