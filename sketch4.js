@@ -1,8 +1,6 @@
 let backgroundSound;
 let amplitude;
 let fft;
-let activeOscillators = {};
-let pentatonic = [261.63, 293.66, 329.63, 392.00, 440.00];
 let activeKeys = [];
 
 // Visual parameters (same as sketch3)
@@ -150,41 +148,21 @@ function displayInfo() {
   noStroke();
   textSize(12);
   textAlign(LEFT, TOP);
-  text('Press A-Z for synthesizer tones', 10, 10);
+  text('Press A-Z to change animation', 10, 10);
 }
 
 function keyPressed() {
   if (key >= 'a' && key <= 'z' || key >= 'A' && key <= 'Z') {
     let keyName = key.toUpperCase();
 
-    if (activeOscillators[keyName]) {
-      return;
-    }
-
     // Add to active keys list
     if (!activeKeys.includes(keyName)) {
       activeKeys.push(keyName);
     }
 
-    let keyIndex = keyName.charCodeAt(0) - 65;
-    let scaleIndex = keyIndex % pentatonic.length;
-    let octave = floor(keyIndex / pentatonic.length) % 2;
-    let freq = pentatonic[scaleIndex] * pow(2, octave);
-
-    // Randomize Lissajous parameters (same as sketch3)
+    // Randomize Lissajous parameters (animation only, no sound)
     a = floor(random(1, 11));
     b = floor(random(1, 11));
-
-    let osc = new p5.Oscillator('sine');
-    osc.freq(freq);
-    osc.start();
-
-    let env = new p5.Envelope();
-    env.setADSR(0.01, 0.2, 0.3, 0.15);
-    env.setRange(0.35, 0);
-    env.play(osc);
-
-    activeOscillators[keyName] = { osc: osc, env: env };
   }
 }
 
@@ -196,17 +174,6 @@ function keyReleased() {
     let index = activeKeys.indexOf(keyName);
     if (index > -1) {
       activeKeys.splice(index, 1);
-    }
-
-    if (activeOscillators[keyName]) {
-      let oscData = activeOscillators[keyName];
-      oscData.osc.amp(0, 0.2);
-
-      setTimeout(() => {
-        oscData.osc.stop();
-        oscData.osc.dispose();
-        delete activeOscillators[keyName];
-      }, 250);
     }
   }
 }
