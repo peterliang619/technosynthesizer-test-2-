@@ -72,7 +72,7 @@ function draw() {
   bassLevel = bassLevel / 64 / 255;
 
   // Amplify bass peaks (square it to make kicks more pronounced)
-  bassLevel = pow(bassLevel, 1.5) * 2.5;
+  bassLevel = pow(bassLevel, 1.5) * 1.5;
 
   // Treble: 2000+ Hz (bins 128+)
   trebleLevel = 0;
@@ -105,8 +105,8 @@ function drawLissajous() {
   translate(width / 2, height / 2);
 
   // Audio-reactive scaling
-  // Bass affects overall scale (kick effect) - MUCH more sensitive now!
-  let scaleAmount = 1 + (bassLevel * 0.8) + (audioLevel * 0.3);
+  // Bass affects overall scale (kick effect) - Balanced to stay on screen
+  let scaleAmount = 1 + (bassLevel * 0.4) + (audioLevel * 0.2);
 
   // Keyboard breathing
   if (activeKeys.length > 0) {
