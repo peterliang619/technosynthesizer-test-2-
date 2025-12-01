@@ -9,6 +9,8 @@ let activeKeys = [];
 let a = 3;
 let b = 4;
 let delta = 0;
+let kickPulse = 0;
+let hatFlicker = 0;
 let breathe = 0;
 
 // Audio-reactive parameters
@@ -81,10 +83,16 @@ function draw() {
   }
   trebleLevel = trebleLevel / 72 / 255;
 
-  // Animate phase shift
-  delta += 0.03 + (audioLevel * 0.1);
+  // Map audio to visual effects (like sketch3's kickPulse and hatFlicker)
+  kickPulse = bassLevel * 0.15;  // Bass -> pulse effect
+  hatFlicker = trebleLevel * 3;   // Treble -> flicker effect
 
-  // Decay breathing effect
+  // Animate phase shift
+  delta += 0.03;
+
+  // Decay visual effects
+  kickPulse *= 0.85;
+  hatFlicker *= 0.7;
   breathe *= 0.95;
 
   // Draw Lissajous curve
@@ -104,9 +112,8 @@ function drawLissajous() {
   push();
   translate(width / 2, height / 2);
 
-  // Audio-reactive scaling
-  // Bass affects overall scale (kick effect) - Balanced to stay on screen
-  let scaleAmount = 1 + (bassLevel * 0.4) + (audioLevel * 0.2);
+  // Apply audio-reactive effects (same as sketch3 style)
+  let scaleAmount = 1 + kickPulse;
 
   // Keyboard breathing
   if (activeKeys.length > 0) {
@@ -116,15 +123,11 @@ function drawLissajous() {
 
   scale(scaleAmount);
 
-  // Treble affects stroke weight (shimmer)
-  let weight = 2 + (trebleLevel * 4);
+  // Hi-hat flicker (strokeWeight variation)
+  let weight = 2 + hatFlicker;
   strokeWeight(weight);
 
-  // Audio-reactive color
-  let hue = (frameCount * 0.5 + audioLevel * 360) % 360;
-  colorMode(HSB);
-  stroke(hue, 80, 100);
-  colorMode(RGB);
+  stroke(255);
   noFill();
 
   // Draw Lissajous
@@ -147,13 +150,7 @@ function displayInfo() {
   noStroke();
   textSize(12);
   textAlign(LEFT, TOP);
-  text('Press A-Z for pentatonic synth tones', 10, 10);
-  text('Lissajous: a=' + a + ' b=' + b, 10, 30);
-  text('Audio Level: ' + nf(audioLevel, 1, 3), 10, 50);
-  text('Bass: ' + nf(bassLevel, 1, 3) + ' | Treble: ' + nf(trebleLevel, 1, 3), 10, 70);
-  if (activeKeys.length > 0) {
-    text('Keys: ' + activeKeys.join(', '), 10, 90);
-  }
+  text('Press A-Z for synthesizer tones', 10, 10);
 }
 
 function keyPressed() {
