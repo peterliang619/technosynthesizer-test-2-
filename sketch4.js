@@ -32,7 +32,7 @@ function setup() {
 
   // Create audio analyzers
   amplitude = new p5.Amplitude();
-  fft = new p5.FFT(0.8, 512);
+  fft = new p5.FFT(0.3, 512); // Lower smoothing = more responsive
 
   // Connect background sound to analyzers
   backgroundSound.connect(amplitude);
@@ -64,12 +64,15 @@ function draw() {
   // Get frequency spectrum
   let spectrum = fft.analyze();
 
-  // Bass: 20-250 Hz (first ~32 bins)
+  // Bass: 20-400 Hz (first ~64 bins for better kick detection)
   bassLevel = 0;
-  for (let i = 0; i < 32; i++) {
+  for (let i = 0; i < 64; i++) {
     bassLevel += spectrum[i];
   }
-  bassLevel = bassLevel / 32 / 255;
+  bassLevel = bassLevel / 64 / 255;
+
+  // Amplify bass peaks (square it to make kicks more pronounced)
+  bassLevel = pow(bassLevel, 1.5) * 2.5;
 
   // Treble: 2000+ Hz (bins 128+)
   trebleLevel = 0;
@@ -102,8 +105,8 @@ function drawLissajous() {
   translate(width / 2, height / 2);
 
   // Audio-reactive scaling
-  // Bass affects overall scale (kick effect)
-  let scaleAmount = 1 + (bassLevel * 0.3) + (audioLevel * 0.2);
+  // Bass affects overall scale (kick effect) - MUCH more sensitive now!
+  let scaleAmount = 1 + (bassLevel * 0.8) + (audioLevel * 0.3);
 
   // Keyboard breathing
   if (activeKeys.length > 0) {
